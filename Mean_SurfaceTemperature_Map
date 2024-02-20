@@ -1,0 +1,63 @@
+// Define your region of interest (ROI): ESSE ROI DEFINE UMA ÁREA ESSENCIAL DE COBERTURA DAS IMAGENS.
+var roi = ee.Geometry.Polygon(
+  [
+    [
+      [-43.002633340174945, -22.99866204943513],
+      [-42.96074796419838, -22.99866204943513],
+      [-42.96074796419838, -22.98033086836019],
+      [-43.002633340174945, -22.98033086836019],
+      [-43.002633340174945, -22.99866204943513]
+    ]
+  ]
+);
+
+//************FUNCAO MUITO IMPORTANTE QUE seleciona APENAS DADOS DA IMAGEM DENTRO DA GEOMETRIA DADA. NOTAR QUE ESSA GEOMETRIA É DIFERENTE DO ROI. A GEOMETRIA É O CORTE DO SEU MAPA FINAL.
+function clip (image){
+  return image.clip(rj4); //******* AQUI EU CHAMEI A GEOMETRIA DE "rj4"
+}
+
+// Load the Landsat 8 collection
+var collection = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+  .filterDate('2013-11-25', '2021-12-25') // INTERVALO DE TEMPO DESEJADO
+  .filterBounds(roi)
+  .select('ST_B10') //ME INTERESSO APENAS PELA BANDA QUE RETORNA VALORES EM KELVIN - DE TEMPERATURA DA SUPERFÍCIE 
+  .map(clip); //APLICA A FUNCAO CLIP A TODAS AS IMAGENS DA COLECAO
+
+// CRIA FUNÇÃO DE CORREÇÃO DE ESCALA, FATORES E UNIDADE (PODERIA SER FEITO ANTERIORMENTE NA SELEÇÃO DA BANDA)
+function applyScaleFactors(image) {
+
+  var thermalBands = image.select('ST_B10')
+    .multiply(0.00341802)
+    .add(149)
+    .subtract(273.15);  //**convertendo para celsius
+
+  return image.addBands(thermalBands, null, true) // RETORNA AS IMAGENS CORRIGIDAS
+
+}
+
+// Apply scaling factors to the collection
+var dataset = collection.map(applyScaleFactors);
+
+var meantemperature = dataset.mean() // ACABA SENDO UMA IMAGEM COM A MÉDIA LOCAL DE TEMPERATURA DA SUPERFFÍCIE NAQUELE INTERVALO DE TEMPO
+
+// CRIA PARÂMETROS DE VISUALIZAÇÃO DA IMAGEM ACIMA
+var temperatureVis = {
+  min: 5,  
+  max: 25,  
+  palette: ['blue', 'green', 'yellow', 'red'],
+};
+
+Map.addLayer(meantemperature, temperatureVis); // ADICIONA A CAMADA DE DADOS DA IMAGEM DE MÉDIAS COM OS PARAMETROS DE VISUALIZÇÃO ANTERIORMENTE CRIADOS.
+
+
+/////////////////////////////////////////////// EXPORTANDO PARA O DRIVE/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//var image = dataset.mean()
+
+Export.image.toDrive({
+  image:meantemperature, 
+  description:'mean', 
+  folder:'mapacalor_transcarioca', 
+  fileNamePrefix:'mean', 
+  region:rj4, 
+  scale:30, 
+  fileFormat:'tif'});
