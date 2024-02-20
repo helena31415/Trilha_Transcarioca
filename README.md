@@ -65,5 +65,11 @@ coefE and coefH are bulk transfer coefficients for moisture and heat, W is wind 
 reference level. Tair is the near surface air temperature (e.g. 2m shelter temperature). The radiometric (or skin) temperature is commonly used as a substitute for aerodynamic temperature in computing the sensible heat flux term SH in the energy balance.
 
 So far we have clarified the physical meaning of radiometric temperature, the variable we are focusing on this product tutorial. We must also realize that due to its nature, radiometric temperature is not measured with thermometers (as thermodynamic temperature is), 
-but with radiometers. Moreover, there is no direct method of measurement since what is being measured is emitted radiance and not radiometric temperature itself. Are the retrieving retrieval methods independent of the emitting surface?"
+but with radiometers. Moreover, there is no direct method of measurement since what is being measured is emitted radiance and not radiometric temperature itself. Are the retrieving retrieval methods independent of the emitting surface?
+(...)
+if there was no atmosphere interposing between the ground (assumed as a Lambertian surface) and the sensor, and assuming the emissivity was known, the surface temperature could be obtained from the measured spectral radiance by inverting Planck's function.
+
+However, we cannot forget the layers composed of clouds, trace gases and aerosols that interfere with the propagation of radiation from the surface towards the top of the Atmosphere (TOA) by attenuating and re-emitting thermal infrared radiation. Figure 4 illustrates the several contributions to the OLR (Outgoing Longwave Radiation). OLR is the total energy emitted from the Earth and its atmosphere out to space in the form of thermal radiation. Most of it is emitted by the surface (Planck's law), followed by upward radiance emitted by atmospheric constituents (mainly water vapor) in the several layers of the atmosphere, L↑atm . This term varies strongly with the vertical structure of the atmosphere - warm/moist layers increase its contribution.
+
+The atmosphere also emits longwave radiation downwards, which is then reflected back from the surface to the TOA (1 - ε) L↓λ atm (this term is very small, nearly zero for a spectral emissivity close to one). (...)"
 
