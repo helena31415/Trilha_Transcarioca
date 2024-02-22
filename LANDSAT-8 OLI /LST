@@ -1,0 +1,16 @@
+Land Surface Temperature (LST) can be defined as the
+temperature felt when the land surface is touched with the
+hands or it is the skin temperature of the ground.
+
+Before the invention of Earth Observation Satellites (EOS), it
+was hard to estimate the LST of an area. Generally, it was
+calculated for a particular set of sample points and interpolated
+into isotherms to generalize the point data into area data. Now
+with the advent of satellites and high resolution sensors it is
+possible to estimate LST spatially. It can be calculated for a
+region at a stretch with the use of thermal infrared bands
+supplied by satellites. Landsat 8 comes with two different sets
+of images from Operation Land Imager (OLI) sensor with nine
+bands (band 1 to 9) and Thermal Infrared sensor (TIR) with
+two bands (band 10 and 11).
+
