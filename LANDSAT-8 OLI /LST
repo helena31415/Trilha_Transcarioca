@@ -1,16 +1,220 @@
-Land Surface Temperature (LST) can be defined as the
-temperature felt when the land surface is touched with the
-hands or it is the skin temperature of the ground.
+                                  // PROCESSO DE ENCONTRAR LST A PARTIR DE BANDAS TERMAIS DO LANDSAT 8
 
-Before the invention of Earth Observation Satellites (EOS), it
-was hard to estimate the LST of an area. Generally, it was
-calculated for a particular set of sample points and interpolated
-into isotherms to generalize the point data into area data. Now
-with the advent of satellites and high resolution sensors it is
-possible to estimate LST spatially. It can be calculated for a
-region at a stretch with the use of thermal infrared bands
-supplied by satellites. Landsat 8 comes with two different sets
-of images from Operation Land Imager (OLI) sensor with nine
-bands (band 1 to 9) and Thermal Infrared sensor (TIR) with
-two bands (band 10 and 11).
 
+
+
+/// PRIMEIRA PARTE ///
+
+var aoi = geometry2
+
+Map.addLayer(aoi,{},'AOI - Rio de Janeiro');
+//Map.centerObject(aoi,7);
+
+function applyScaleFactors(image) {
+  var opticalBands = image.select('SR_B.').multiply(0.0000275).add(-0.2);
+  var thermalBands = image.select('ST_B.*').multiply(0.00341802).add(149.0);
+  return image.addBands(opticalBands, null, true)
+              .addBands(thermalBands, null, true);
+}
+
+function cloudMask(image) {
+  // Define cloud shadow and cloud bitmasks (Bits 3 and 5)
+  var cloudShadowBitmask = (1 << 3);
+  var cloudBitmask = (1 << 5);
+
+  // Select the Quality Assessment (QA) band for pixel quality information
+  var qa = image.select('QA_PIXEL');
+
+  // Create a binary mask to identify clear conditions (both cloud and cloud shadow bits set to 0)
+  var mask = qa.bitwiseAnd(cloudShadowBitmask).eq(0)
+                .and(qa.bitwiseAnd(cloudBitmask).eq(0));
+
+  // Update the original image, masking out cloud and cloud shadow-affected pixels
+  return image.updateMask(mask);
+}
+
+var image = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+              .filterBounds(aoi)
+              .filterDate('2022-01-01','2024-01-01')
+              .map(applyScaleFactors)
+              .map(cloudMask)
+              .median() // podemos testar outros resumos numéricos aqui **
+              .clip(aoi);
+
+
+var visualization = {
+  bands: ['SR_B4', 'SR_B3', 'SR_B2'],
+  min: 0.0,
+  max: 0.15,
+};
+
+Map.addLayer(image, visualization, 'True Color 432');
+
+/// SEGUNDA PARTE /// *NDVI*
+
+// NDVI=(NIR+Red)/(NIR−Red)​
+// NIR: typically Landsat band 5 or similar
+// RED: typically Landsat band 4 or similar
+
+var ndvi = image.normalizedDifference(['SR_B5', 'SR_B4']).rename('NDVI');
+
+var ndviPalette = {
+ min: -1,
+ max: 1,
+ palette: ['blue', 'white', 'green']
+};
+
+Map.addLayer(ndvi, ndviPalette, 'NDVI Rio de Janeiro')
+
+//The minimum (min) and maximum (max) values of the Normalized Difference Vegetation Index (NDVI) are used to calculate the proportion of vegetation cover (PV) in the region of interest.
+// Proportion of Vegetation (PV) = (NDVI — NDVI_min) / (NDVI_max — NDVI_min)
+// Fraction of Vegetation (FV) = ((NDVI - NDVI_min) / (NDVI_max - NDVI_min))^2
+// Emissivity Calculation = 0.004 * FV + 0.986
+var ndviMin = ee.Number(ndvi.reduceRegion({
+  reducer   : ee.Reducer.min(), // podemos tentar algo assim para mapa de temperaturas mínimas (?) **
+  geometry  : aoi,
+  scale     : 30, // pixel size*
+  maxPixels : 1e9
+}).values().get(0));
+
+var ndviMax = ee.Number(ndvi.reduceRegion({
+  reducer   : ee.Reducer.max(), //calculate the maximum NDVI value within the specified AOI.
+  geometry  : aoi,
+  scale     : 30,
+  maxPixels : 1e9
+}).values().get(0));
+
+print("Minimum NDVI:", ndviMin);
+print("Maximum NDVI:", ndviMax);
+
+var fv = ((ndvi.subtract(ndviMin)).divide(ndviMax.subtract(ndviMin)))
+          .pow(ee.Number(2))
+          .rename('FV');
+          
+var em = fv.multiply(ee.Number(0.004)).add(ee.Number(0.986)).rename('EM'); 
+          //0.004 coefficient represents the emissivity variation due to vegetation
+          //0.986 represents the base emissivity for other surfaces
+          // i.e.: 0.004 + 0.986 = 1.000
+
+/// PARTE 3 /// *Estimando Temperatura da Superfície Terrestre
+
+// (TB / (1 + (λ * (TB / 1.438)) * ln(em))) - 273.15
+
+var thermal = image.select('ST_B10').rename('thermal');
+
+var lst = thermal.expression(
+  '(TB / (1 + (0.00115 * (TB / 1.438)) * log(em))) - 273.15', {
+    'TB': thermal.select('thermal'), 
+    'em': em 
+  }).rename('Mapa de Temperaturas de Superfície - Rio de Janeiro, 2013-2024');
+
+Map.addLayer(lst, {
+  min: 18.47, 
+  max: 42.86, 
+  palette: [
+    '040274', '040281', '0502a3', '0502b8', '0502ce', '0502e6',
+    '0602ff', '235cb1', '307ef3', '269db1', '30c8e2', '32d3ef',
+    '3be285', '3ff38f', '86e26f', '3ae237', 'b5e22e', 'd6e21f',
+    'fff705', 'ffd611', 'ffb613', 'ff8b13', 'ff6e08', 'ff500d',
+    'ff0000', 'de0101', 'c21301', 'a71001', '911003'
+  ]}, 'Temperaturas de Superfície - Rio de Janeiro, 2013-2024');
+
+
+/// PARTE 4: configurações finais ///
+
+
+var minLST = 15; // Minimum LST value
+var maxLST = 45; // Maximum LST value
+
+// Create a panel for the legend with styling
+var legend = ui.Panel({
+  style: {
+    position: 'bottom-right',
+    padding: '8px 15px',
+    backgroundColor: 'white'
+  }
+});
+
+// Create a title for the legend
+var legendTitle = ui.Label({
+  value: 'Temperatura de Superfície (°C)',
+  style: {
+    fontWeight: 'bold',
+    fontSize: '15px',
+    margin: '0 0 4px 0',
+    padding: '0'
+  }
+});
+
+// Add the legend title to the legend panel
+legend.add(legendTitle);
+
+// Define a color palette for the legend
+var palette = [
+  '040274', '040281', '0502a3', '0502b8', '0502ce', '0502e6',
+  '0602ff', '235cb1', '307ef3', '269db1', '30c8e2', '32d3ef',
+  '3be285', '3ff38f', '86e26f', '3ae237', 'b5e22e', 'd6e21f',
+  'fff705', 'ffd611', 'ffb613', 'ff8b13', 'ff6e08', 'ff500d',
+  'ff0000', 'de0101', 'c21301', 'a71001', '911003', '210300'
+];
+
+// Calculate the step value for the legend
+var step = (maxLST - minLST) / (palette.length - 1);
+
+// Loop through the palette and create legend entries
+for (var i = 0; i < palette.length; i++) {
+  // Create a color box for each legend entry
+  var colorBox = ui.Label({
+    style: {
+      backgroundColor: '#' + palette[i],
+      padding: '8px',
+      margin: '0 0 8px 0',
+      width: '42px'
+    }
+  });
+
+  // Create a label with LST values for each legend entry
+  var legendLabel = ui.Label({
+    value: (minLST + i * step).toFixed(2),
+    style: { margin: '0 0 10px 6px' }
+  });
+
+  // Create a panel to arrange color box and label horizontally
+  var legendPanel = ui.Panel({
+    widgets: [colorBox, legendLabel],
+    layout: ui.Panel.Layout.Flow('horizontal')
+  });
+
+  // Add the legend entry panel to the main legend panel
+  legend.add(legendPanel);
+}
+
+// Add the legend to the Google Earth Engine map
+Map.add(legend);
+
+// Create a Map Title
+var mapTitle = ui.Panel({
+  style: {
+    position: 'top-center',
+    padding: '20px 20px'
+  }
+});
+var mapTitle2 = ui.Label({
+  value: 'LST Rio de Janeiro 2020-2024 ',
+  style: {
+    fontWeight: 'bold',
+    fontSize: '30px',
+    margin: '8px 8px 8px 8px',
+    padding: '0'
+  }
+});
+mapTitle.add(mapTitle2);
+
+Map.add(mapTitle);
+
+
+
+
+
+
+// references: https://medium.com/@ridhomuh002/analyzing-land-surface-temperature-lst-with-landsat-8-data-in-google-earth-engine-f4dd7ca28e70
