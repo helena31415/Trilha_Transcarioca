@@ -1,0 +1,25 @@
+Qgis:
+
+1. add Vector Layer: trechos da Transcarioca em .GPX
+2. select tracks/routes instead of point features
+3. add Raster Layer
+4. configure limits and pallette of Raster Layer 
+5. New Print Layout
+  5.1 Add Map
+    5.1.1 Find the best scale to adjust your map to the moldure
+  5.2 Add Legend
+  5.3 Add North 
+  5.4 Add scale bar
+  5.5 Add title
+  5.6 Add references
+  5.7 Add GRIDS
+      5.7.1 Draw Coordinates 
+        5.7.1.1 Vertical Ascendent
+
+
+ArcGis:
+
+1. Go to GPX to Features tool
+  1.2 Add GPX files one by one converting them into Features (.shp)
+For Raster creatin and Map Layout: almost the same as Qgis
+
