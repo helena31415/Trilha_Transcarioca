@@ -1,8 +1,4 @@
                                   // PROCESSO DE ENCONTRAR LST A PARTIR DE BANDAS TERMAIS DO LANDSAT 8
-
-// PROBLEMAS COM MEMORIA E NUVENS, EM CASO DE INTERVALO CURTO DE TEMPO.
-
-
 /// PRIMEIRA PARTE ///
 
 var aoi = geometry2
@@ -33,13 +29,15 @@ function cloudMask(image) {
   return image.updateMask(mask);
 }
 
-var image = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+var imageRGB = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
               .filterBounds(aoi)
-              .filterDate('2022-01-01','2024-01-01')
+              .filterDate('2015-10-01','2023-10-20')
               .map(applyScaleFactors)
               .map(cloudMask)
-              .median() // podemos testar outros resumos numéricos aqui **
+              .mean() // podemos testar outros resumos numéricos aqui **
               .clip(aoi);
+
+
 
 
 var visualization = {
@@ -48,7 +46,7 @@ var visualization = {
   max: 0.15,
 };
 
-Map.addLayer(image, visualization, 'True Color 432');
+Map.addLayer(imageRGB, visualization, 'True Color 432');
 
 /// SEGUNDA PARTE /// *NDVI*
 
@@ -56,7 +54,7 @@ Map.addLayer(image, visualization, 'True Color 432');
 // NIR: typically Landsat band 5 or similar
 // RED: typically Landsat band 4 or similar
 
-var ndvi = image.normalizedDifference(['SR_B5', 'SR_B4']).rename('NDVI');
+var ndvi = imageRGB.normalizedDifference(['SR_B5', 'SR_B4']).rename('NDVI');
 
 var ndviPalette = {
  min: -1,
@@ -100,13 +98,14 @@ var em = fv.multiply(ee.Number(0.004)).add(ee.Number(0.986)).rename('EM');
 
 // (TB / (1 + (λ * (TB / 1.438)) * ln(em))) - 273.15
 
-var thermal = image.select('ST_B10').rename('thermal');
+var thermal = imageRGB.select('ST_B10').rename('thermal'); // variável IMAGEM. NOME: thermal
 
 var lst = thermal.expression(
-  '(TB / (1 + (0.00115 * (TB / 1.438)) * log(em))) - 273.15', {
+  //'(TB / (1 + (0.00115 * (TB / 1.438)) * log(em))) - 273.15', {
+      'TB  - 273.15', {
     'TB': thermal.select('thermal'), 
-    'em': em 
-  }).rename('Mapa de Temperaturas de Superfície - Rio de Janeiro, 2013-2024');
+    //'em': em 
+  }).rename('Temperaturas Médias em °C'); //NOSSO TIF!!! 
 
 Map.addLayer(lst, {
   min: 18.47, 
@@ -123,7 +122,7 @@ Map.addLayer(lst, {
 /// PARTE 4: configurações finais ///
 
 
-var minLST = 15; // Minimum LST value
+var minLST = 18; // Minimum LST value
 var maxLST = 45; // Maximum LST value
 
 // Create a panel for the legend with styling
@@ -212,6 +211,24 @@ mapTitle.add(mapTitle2);
 
 Map.add(mapTitle);
 
+/// PARTE 5: exportando p/ Drive ///
+
+Export.image.toDrive({
+  image: lst,
+  description: 'lst_ondacalor2015',
+  folder: 'mapacalor_transcarioca', // mesmo que no código anterior (Landsat_meanTemperature)
+  fileNamePrefix: 'lst_ondacalor2015',
+  region: aoi,
+  scale: 30,
+  fileFormat: 'tif'
+});
+
+
+print('Exporting Land Surface Temperature (LST) image to Google Drive...');
+
+
+
+// references: https://medium.com/@ridhomuh002/analyzing-land-surface-temperature-lst-with-landsat-8-data-in-google-earth-engine-f4dd7ca28e70
 
 
 
