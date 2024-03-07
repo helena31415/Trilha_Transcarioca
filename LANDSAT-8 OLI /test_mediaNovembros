@@ -1,0 +1,33 @@
+var imageRGB = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+  .filterBounds(aoi)
+  .filterDate('2015-10-01', '2023-10-20')
+  .map(applyScaleFactors)
+  .map(cloudMask);
+
+// Função para calcular a média das imagens em um determinado período
+var calculateMonthlyMean = function(month) {
+  var start = ee.Date.fromYMD(2020, month, 1);
+  var end = start.advance(1, 'month');
+  
+  return imageRGB
+    .filterDate(start, end)
+    .mean()
+    .set('system:time_start', start.millis());
+};
+
+// Lista de meses (novembro) para calcular a média
+var months = ee.List.sequence(11, 11);
+
+// Calcula a média das médias dos meses de novembro
+var monthlyMeans = ee.ImageCollection.fromImages(
+  months.map(calculateMonthlyMean)
+);
+
+// Calcula a média das médias resultantes
+var finalMean = monthlyMeans.mean();
+
+// Recorta a região de interesse
+var result = finalMean.clip(aoi);
+
+// Adiciona a imagem resultante ao mapa
+Map.addLayer(result, {bands: ['B4', 'B3', 'B2'], min: 0, max: 3000}, 'Média das médias de novembro');
